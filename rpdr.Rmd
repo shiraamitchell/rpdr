@@ -1,6 +1,6 @@
 ---
 title: "RuPaul-Predict-a-Looza"
-date: February 13, 2019
+date: February 14, 2019
 output:
   html_document:
     toc: true
