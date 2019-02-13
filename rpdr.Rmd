@@ -108,7 +108,7 @@ $$P[i^* \text{ wins episode }t] = \frac{\exp(\eta_{i^*t})}{\sum_i \exp(\eta_{it}
 $$P[i_* \text{ loses episode }t] = \frac{\exp(-\eta_{i_*t})}{\sum_{i \ne i^*} \exp(-\eta_{it})}$$
 $$\alpha_i \sim N(0, \sigma)$$
 
-We have [prior knowledge from large corpuses of Logistic regressions](http://www.stat.columbia.edu/~gelman/research/published/priors11.pdf) to rule out unreasonable values for coefficients. We express this by putting a Student's t prior on $\beta_\text{age}$ and $\beta_\text{past_wins}$. This is a reasonable default prior when coefficients should be close to zero but have some chance of being large. We put a half-Normal prior on $\sigma$. We follow the recommendations [here](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations).
+We have [prior knowledge from large corpuses of logistic regressions](http://www.stat.columbia.edu/~gelman/research/published/priors11.pdf) to rule out unreasonable values for coefficients. We express this by putting a Student's t prior on $\beta_\text{age}$ and $\beta_\text{past_wins}$. This is a reasonable default prior when coefficients should be close to zero but have some chance of being large. We put a half-Normal prior on $\sigma$. We follow the recommendations [here](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations).
 
 ```{stan, output.var='model', cache = TRUE}
 functions {
