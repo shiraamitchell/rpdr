@@ -168,15 +168,15 @@ model {
 ```{r fit, results = "hide", message = FALSE, cache = TRUE}
 fit_model <- function(df) {
   standata <- list(
-    N = nrow(wrangled),
-    I = max(wrangled$contestant_id),
-    T = max(wrangled$t),
-    ii = wrangled$contestant_id,
-    num_contestants = (wrangled %>% group_by(t) %>% summarise(n = n()))$n,
-    winner = which(wrangled$placement == "win"),
-    loser = which(wrangled$placement == "lose"), 
-    age = wrangled$z.age,
-    past_wins = wrangled$z.past_wins
+    N = nrow(df),
+    I = max(df$contestant_id),
+    T = max(df$t),
+    ii = df$contestant_id,
+    num_contestants = (df %>% group_by(t) %>% summarise(n = n()))$n,
+    winner = which(df$placement == "win"),
+    loser = which(df$placement == "lose"), 
+    age = df$z.age,
+    past_wins = df$z.past_wins
   )
   sampling(object = model, data = standata, chains = 4, iter = 2000, control = list(adapt_delta = 0.99))
 }
