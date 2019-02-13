@@ -1,0 +1,231 @@
+---
+title: "RuPaul-Predict-a-Looza (and winner)"
+date: February 12, 2019
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+# Overview
+
+## Goal
+Build a predictive model that accurately predicts the **winner and loser** of each RuPaul's Drag Race episode before that new episode airs.
+
+![](https://www.out.com/sites/out.com/files/2019/01/24/trip-750x.jpg)
+
+## Winners
+Teams with the highest proportion of correct predictions over the season (i.e. lowest average [0-1 loss](https://en.wikipedia.org/wiki/Loss_function#0-1_loss_function)).
+
+## Rules
+
+Models can use any **publicly-available information**: e.g. blog posts, Twitter sentiment, Instagram followers. To get you started, we at [Data for Progress](https://twitter.com/DataProgress) provide datasets [here](https://docs.google.com/spreadsheets/d/1Sotvl3o7J_ckKUg5sRiZTqNQn3hPqhepBSeOpMTK15Q/edit?usp=sharing):
+
+1. all_episodes: episode-level data, past 10 seasons
+2. all_contestants: contestant-level data, past 10 seasons, current season (season 11)
+3. all_contestant_episode_rankings: episode-contestant-level data, past 10 seasons
+4. current_follower_counts: contestant-time-level data, current season (season 11)
+5. past_twitter: contestant-time-level data, seasons 4 through 10 (with some gaps)
+
+We will be updating the first four datasets throughout the current season (season 11).
+
+Models cannot use non-public information. They can, however, create their own datasets based on publicly-available information.
+
+Each week (**starting February 28**), each team must **submit their predictions** by 5:00 PM EST each day an episode airs (including the premiere on February 28). Each team must submit only one prediction (the winner and the loser) for each episode. If the episode has more than one winner (or more than one loser), a team is correct if they predict one of the winners (or losers). We also require you to describe (at a high level) your strategy and input variables (i.e. features/covariates).
+
+Predictions should be submitted [here](https://goo.gl/forms/CDLwadteV5psAUy73).
+
+At the end of the competition, we ask that you also **share your code and data** for educational purposes. The goal of the competition is to encourage engagement with data science.
+
+# Getting started
+
+Following advice from [Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/bayescomputation/bdachapter6.pdf), we "start with a simple model that uses only some of the available information". Teams can start here, or somewhere else entirely!
+
+We *wrangle* data (get data into R in a useful form) in the [tidyverse](https://www.tidyverse.org/), a collection of R packages that share a common philosophy. We conduct *analysis* in [Stan](http://mc-stan.org/), open-source software to do fully Bayesian inference.
+
+```{r setup, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(knitr)
+library(googlesheets)
+library(rstan)
+gs_auth()
+knitr::dep_prev()
+```
+
+## Wrangle
+
+We begin by data wrangling, getting data into R in a useful form. We import and join datasets. We standardize continuous variables (see [this paper](http://www.stat.columbia.edu/~gelman/research/published/standardizing7.pdf)).
+
+```{r wrangled, message = FALSE, warning = FALSE, cache = TRUE}
+rpdr_data <- "RPDR Data Tables" %>% gs_title
+
+all_episodes <- rpdr_data %>% gs_read("all_episodes") %>%
+  arrange(season_number, episode_number) %>% rowid_to_column("t")
+all_contestants <- rpdr_data %>% gs_read("all_contestants")
+all_contestant_episode_rankings <- rpdr_data %>% gs_read("all_contestant_episode_rankings")
+
+wrangled <- all_contestant_episode_rankings %>%
+  left_join(all_contestants, by = c("season_number","contestant_id")) %>%
+  left_join(all_episodes, by=c("season_number", "episode_number")) %>%
+  mutate(placement = case_when(is.element(episode_placement,c('WIN','Winner')) ~ "win",
+                      is.element(episode_placement,c('ELIM','Eliminated'))  ~ "lose",
+                      TRUE ~ "neither")) %>%
+  group_by(t) %>% mutate(num_winners = sum(placement == "win"), 
+                         num_losers = sum(placement == "lose")) %>% ungroup() %>%
+  filter(is.element(episode_type,c('Competition','Finale'))) %>%
+  filter(num_winners == 1, num_losers == 1) %>% # only use data on typical episodes
+  filter(!is.element(episode_placement,c('Guest','Miss C'))) %>%
+  group_by(contestant_id) %>% mutate(past_wins = cumsum(placement == "win") - (placement == "win")) %>%
+  ungroup() %>%
+  mutate(z.past_wins = (past_wins - mean(past_wins))/(2*sd(past_wins))) %>%
+  mutate(z.age = (age - mean(age))/(2*sd(age))) %>%
+  select(season_number, episode_number, t, contestant_id, # identifiers
+         z.age, z.past_wins, # x variables
+         placement, num_winners, num_losers) # episode outcomes
+
+# renumber episodes skipping the atypical ones:
+wrangled$t <- as.numeric(as.factor(wrangled$t))
+```
+
+Our wrangled data look like this:
+```{r view1_wrangled, message = FALSE, warning = FALSE, echo = FALSE, cache = TRUE}
+kable(head(wrangled,10), digits = 2)
+```
+...
+...
+...
+```{r view2_wrangled, message = FALSE, warning = FALSE, echo = FALSE, cache = TRUE}
+kable(tail(wrangled,10), digits = 2)
+```
+
+## Model
+
+Now that we wrangled our data, we can model. Let $i$ index the contestants and $t$ index the episodes. We fit a [multilevel](http://www.stat.columbia.edu/~gelman/arm/), [conditional logistic](https://en.wikipedia.org/wiki/Conditional_logistic_regression) regression model with a coefficient for each contestant. Here is our model in mathematical notation: 
+
+$$\eta_{it} = \beta_\text{age} \text{age}_i + \beta_\text{past_wins} \text{past_wins}_{it} + \alpha_i \ \ \text{ for } i \text{ playing in episode } t$$
+
+$$P[i^* \text{ wins episode }t] = \frac{\exp(\eta_{i^*t})}{\sum_i \exp(\eta_{it})}$$
+
+$$P[i_* \text{ loses episode }t] = \frac{\exp(-\eta_{i_*t})}{\sum_{i \ne i^*} \exp(-\eta_{it})}$$
+$$\alpha_i \sim N(0, \sigma)$$
+
+We have [prior knowledge from large corpuses of Logistic regressions](http://www.stat.columbia.edu/~gelman/research/published/priors11.pdf) to rule out unreasonable values for coefficients. We express this by putting a Student's t prior on $\beta_\text{age}$ and $\beta_\text{past_wins}$. This is a reasonable default prior when coefficients should be close to zero but have some chance of being large. We put a half-Normal prior on $\sigma$. We follow the recommendations [here](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations).
+
+```{stan, output.var='model', cache = TRUE}
+functions {
+  vector remove(vector x, int length, int r) { 
+    vector[length - 1] result;
+    int pos = 1; 
+    for (n in 1:length) { 
+      if (n != r) { 
+        result[pos] = x[n];
+        pos = pos + 1; 
+      } 
+    } 
+  return result; 
+  }
+}
+data {
+  int N; // number of contestant-episode observations
+  int I; // number of contestants
+  int T; // number of episodes
+  int<lower=1,upper=I> ii[N]; // contestant for each observation
+  int num_contestants[T]; // number of contestants for each episode
+  int winner[T]; // observation number of the winner for each episode
+  int loser[T]; // observation number of the loser for each episode
+  real age[N];
+  real past_wins[N];
+}
+parameters {
+  real beta_age;
+  real beta_past_wins;
+  vector[I] alpha_contestant_raw;
+  real<lower=0> sigma;
+}
+transformed parameters {
+  vector[I] alpha_contestant = alpha_contestant_raw * sigma;
+}
+model {
+  vector[N] eta;
+  for (n in 1:N) {
+    eta[n] = beta_age * age[n] + beta_past_wins * past_wins[n] + alpha_contestant[ii[n]];
+  }
+  beta_age ~ student_t(6,0,2.5);
+  beta_past_wins ~ student_t(6,0,2.5);
+  alpha_contestant_raw ~ normal(0,1);
+  sigma ~ normal(0,1);
+  { int pos;
+  pos = 1;
+  for (t in 1:T) {
+    target += eta[winner[t]] - log_sum_exp(segment(eta, pos, num_contestants[t]));
+    target += -1*eta[loser[t]] - log_sum_exp(-1*segment(remove(eta,N,winner[t]), pos, num_contestants[t]-1));
+    pos = pos + num_contestants[t];
+  }}
+}
+```
+
+
+```{r fit, results = "hide", message = FALSE, cache = TRUE}
+fit_model <- function(df) {
+  standata <- list(
+    N = nrow(wrangled),
+    I = max(wrangled$contestant_id),
+    T = max(wrangled$t),
+    ii = wrangled$contestant_id,
+    num_contestants = (wrangled %>% group_by(t) %>% summarise(n = n()))$n,
+    winner = which(wrangled$placement == "win"),
+    loser = which(wrangled$placement == "lose"), 
+    age = wrangled$z.age,
+    past_wins = wrangled$z.past_wins
+  )
+  sampling(object = model, data = standata, chains = 4, iter = 2000, control = list(adapt_delta = 0.99))
+}
+fit <- fit_model(df = wrangled)
+```
+
+
+```{r stan_plot}
+print(fit, pars = c('beta_age','beta_past_wins','sigma'))
+stan_plot(fit, pars = c('beta_age','beta_past_wins','sigma')) + geom_vline(xintercept=0, size = 2)
+```
+
+
+To estimate the predictive performance for new episodes we next use *leave-future-out cross-validation*:
+
+```{r lfo-cv, results = "hide", message = FALSE, warning=FALSE, cache = TRUE}
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+L = 30 # always use at least L past episodes of data
+correct = c()
+random_correct = c()
+# this will take a long time!
+for (t_current in (L+1):max(wrangled$t)) {
+  data_current <- wrangled %>% filter(t < t_current) # leave-future-out
+  fit_current <- fit_model(df = data_current)
+  newdata <- wrangled %>% filter(t == t_current)
+  s <- as.data.frame(fit_current) # simulations from the posterior
+  eta_s <- matrix(NA, nrow = nrow(s), ncol = nrow(newdata))
+  for (n in 1:nrow(newdata)) {
+    i = newdata$contestant_id[n]
+    if (is.element(i,data_current$contestant_id)) { # we have seen this contestant before
+      alpha_contestant_s <- s[,c(paste('alpha_contestant[',i,']',sep=''))]
+    } else { # this is a new contestant
+      alpha_contestant_s <- rnorm(n = nrow(s), mean = 0, sd = s$sigma)
+    }
+    eta_s[,n] <- s$beta_age * newdata$z.age[n] + s$beta_past_wins * newdata$z.past_wins[n] + alpha_contestant_s
+  }
+  winner_s <- apply(eta_s, MARGIN = 1, FUN = which.max)
+  pred_winner <- Mode(winner_s)
+  loser_s <- apply(eta_s, MARGIN = 1, FUN = which.min)
+  pred_loser <- Mode(loser_s)
+  correct <- c(correct, (newdata$placement[pred_winner] == "win") & 
+                 (newdata$placement[pred_loser] == "lose"))
+  random_correct = c(random_correct, (1/nrow(newdata))*(1/(nrow(newdata)-1)))
+}
+```
+
+We get `r round(mean(correct)*100)`% accuracy with our model. A random guess gets `r round(mean(random_correct)*100)`% accuracy. Can your model do better?
+
+Side note: Computing leave-future-out cross-validation above took a long time. For an approximate leave-future-out cross-validation that is much faster, see [this paper](https://github.com/paul-buerkner/LFO-CV-paper/blob/master/LFO-CV.pdf).
