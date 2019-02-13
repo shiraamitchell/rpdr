@@ -1,5 +1,5 @@
 ---
-title: "RuPaul-Predict-a-Looza (and winner)"
+title: "RuPaul-Predict-a-Looza"
 date: February 13, 2019
 output:
   html_document:
@@ -8,6 +8,8 @@ output:
 ---
 
 # Overview
+
+Welcome to the RuPaul-Predict-a-Looza (and winner)!
 
 ## Goal
 Build a predictive model that accurately predicts the **winner and loser** of each RuPaul's Drag Race episode before that new episode airs.
