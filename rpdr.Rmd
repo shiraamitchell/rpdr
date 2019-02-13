@@ -26,10 +26,11 @@ Models can use any **publicly-available information**: e.g. blog posts, Twitter 
 1. all_episodes: episode-level data, past 10 seasons
 2. all_contestants: contestant-level data, past 10 seasons, current season (season 11)
 3. all_rankings: episode-contestant-level data, past 10 seasons
-4. current_follower_counts: contestant-time-level data, current season (season 11)
-5. past_twitter: contestant-time-level data, seasons 4 through 10 (with some gaps)
+4. all_social_media: contestant-time-level data, seasons 4 through 10 (with some gaps), current season (season 11)
+5. survey_votes: vote-level data from the [survey](https://www.allourideas.org/drag-race-s11) (you can participate!), current season (season 11)
+6. survey_contestants: contestant-level data from the [survey](https://www.allourideas.org/drag-race-s11), current season (season 11)
 
-We will be updating the first four datasets throughout the current season (season 11).
+We will be updating datasets throughout the current season (season 11).
 
 Models cannot use non-public information. They can, however, create their own datasets based on publicly-available information.
 
