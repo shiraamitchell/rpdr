@@ -39,7 +39,7 @@ At the end of the competition, we ask that you also **share your code and data**
 
 # Getting started
 
-Following advice from [Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/bayescomputation/bdachapter6.pdf), we "start with a simple model that uses only some of the available information". Teams can start here, or somewhere else entirely!
+Following advice from [Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/bayescomputation/bdachapter6.pdf), we "start with a simple model that uses only some of the available information". Teams can start here, or somewhere else entirely! Code for this notebook is [here](https://github.com/shiraamitchell/rpdr).
 
 We *wrangle* data (get data into R in a useful form) in the [tidyverse](https://www.tidyverse.org/), a collection of R packages that share a common philosophy. We conduct *analysis* in [Stan](http://mc-stan.org/), open-source software to do fully Bayesian inference.
 
