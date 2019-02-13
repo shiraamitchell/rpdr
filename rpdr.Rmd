@@ -23,7 +23,7 @@ Models can use any **publicly-available information**: e.g. blog posts, Twitter 
 
 1. all_episodes: episode-level data, past 10 seasons
 2. all_contestants: contestant-level data, past 10 seasons, current season (season 11)
-3. all_contestant_episode_rankings: episode-contestant-level data, past 10 seasons
+3. all_rankings: episode-contestant-level data, past 10 seasons
 4. current_follower_counts: contestant-time-level data, current season (season 11)
 5. past_twitter: contestant-time-level data, seasons 4 through 10 (with some gaps)
 
@@ -61,9 +61,9 @@ rpdr_data <- "1Sotvl3o7J_ckKUg5sRiZTqNQn3hPqhepBSeOpMTK15Q" %>%  gs_key
 all_episodes <- rpdr_data %>% gs_read("all_episodes") %>%
   arrange(season_number, episode_number) %>% rowid_to_column("t")
 all_contestants <- rpdr_data %>% gs_read("all_contestants")
-all_contestant_episode_rankings <- rpdr_data %>% gs_read("all_contestant_episode_rankings")
+all_rankings <- rpdr_data %>% gs_read("all_rankings")
 
-wrangled <- all_contestant_episode_rankings %>%
+wrangled <- all_rankings %>%
   left_join(all_contestants, by = c("season_number","contestant_id")) %>%
   left_join(all_episodes, by=c("season_number", "episode_number")) %>%
   mutate(placement = case_when(is.element(episode_placement,c('WIN','Winner')) ~ "win",
