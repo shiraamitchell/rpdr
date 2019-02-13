@@ -56,7 +56,7 @@ knitr::dep_prev()
 We begin by data wrangling, getting data into R in a useful form. We import and join datasets. We standardize continuous variables (see [this paper](http://www.stat.columbia.edu/~gelman/research/published/standardizing7.pdf)).
 
 ```{r wrangled, message = FALSE, warning = FALSE, cache = TRUE}
-rpdr_data <- "RPDR Data Tables" %>% gs_title
+rpdr_data <- "1Sotvl3o7J_ckKUg5sRiZTqNQn3hPqhepBSeOpMTK15Q" %>%  gs_key
 
 all_episodes <- rpdr_data %>% gs_read("all_episodes") %>%
   arrange(season_number, episode_number) %>% rowid_to_column("t")
