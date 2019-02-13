@@ -31,7 +31,7 @@ We will be updating the first four datasets throughout the current season (seaso
 
 Models cannot use non-public information. They can, however, create their own datasets based on publicly-available information.
 
-Each week (**starting February 28**), each team must **submit their predictions** by 5:00 PM EST each day an episode airs (including the premiere on February 28). Each team must submit only one prediction (the winner and the loser) for each episode. If the episode has more than one winner (or more than one loser), a team is correct if they predict one of the winners (or losers). If a team does not submit for an episode, it counts as an incorrect prediction. We also require you to describe (at a high level) your modeling strategy and input variables (i.e. features/covariates).
+Each week (**starting February 28**), each team must **submit their predictions** by 5:00 PM EST each day an episode airs (including the premiere on February 28). Each team must submit only one prediction (the winner and the loser) for each episode. If the episode has more than one winner (or more than one loser), a team is considered correct if they predict one of the winners (or losers). If the episode has no winner (or no loser), a team is considered correct regardless of their prediction. If a team does not submit for an episode, it counts as an incorrect prediction. If a team submits more than once for an episode, only the most recent (before the deadline) will count. We also require you to describe (at a high level) your modeling strategy and input variables (i.e. features/covariates).
 
 Predictions should be submitted [here](https://goo.gl/forms/CDLwadteV5psAUy73).
 
