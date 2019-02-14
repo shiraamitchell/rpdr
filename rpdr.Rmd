@@ -17,7 +17,7 @@ Build a predictive model that accurately predicts the **winner and loser** of ea
 ![](https://www.out.com/sites/out.com/files/2019/01/24/trip-750x.jpg)
 
 ## Winners
-Teams with the highest proportion of correct predictions over the season (i.e. lowest average [0-1 loss](https://en.wikipedia.org/wiki/Loss_function#0-1_loss_function)).
+Teams with the highest proportion of correct predictions over the season (i.e. lowest average [0-1 loss](https://en.wikipedia.org/wiki/Loss_function#0-1_loss_function)). The prize: bragging rights and the ability to add one policy question on the next [Data for Progress](https://twitter.com/DataProgress) survey.
 
 ## Rules
 
@@ -39,6 +39,8 @@ Each week (**starting February 28**), each team must **submit their predictions*
 Predictions should be submitted [here](https://goo.gl/forms/CDLwadteV5psAUy73).
 
 At the end of the competition, we ask that you also **share your code and data** for educational purposes. The goal of the competition is to encourage engagement with data science.
+
+Sidenote: We will also compare teams' loser predictions to [Corey Johnson](https://twitter.com/CoreyinNYC)'s (speaker of the New York City Council). Corey will submit a weekly guess as to which queen will be eliminated in the episode.
 
 # Getting started
 
