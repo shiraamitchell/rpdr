@@ -42,6 +42,8 @@ At the end of the competition, we ask that you also **share your code and data**
 
 Sidenote: We will also compare teams' loser predictions to [Corey Johnson](https://twitter.com/CoreyinNYC)'s (speaker of the New York City Council). Corey will submit a weekly guess as to which queen will be eliminated in the episode.
 
+Questions? Email rupaulpredictalooza@gmail.com
+
 # Getting started
 
 Following advice from [Bayesian Data Analysis](http://www.stat.columbia.edu/~gelman/bayescomputation/bdachapter6.pdf), we "start with a simple model that uses only some of the available information". Teams can start here, or somewhere else entirely! This is only one example approach. You can use a different modeling approach and/or add variables. Code for this notebook is [here](https://github.com/shiraamitchell/rpdr).
