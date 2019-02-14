@@ -232,4 +232,4 @@ for (t_current in (L+1):max(wrangled$t)) {
 
 We get `r round(mean(correct)*100)`% accuracy with our model. A random guess gets `r round(mean(random_correct)*100)`% accuracy. Can your model do better?
 
-Side note: Computing leave-future-out cross-validation above took a long time. For an approximate leave-future-out cross-validation that is much faster, see [this paper](https://github.com/paul-buerkner/LFO-CV-paper/blob/master/LFO-CV.pdf).
+Sidenote: Computing leave-future-out cross-validation above took a long time. For an approximate leave-future-out cross-validation that is much faster, see [this paper](https://github.com/paul-buerkner/LFO-CV-paper/blob/master/LFO-CV.pdf).
