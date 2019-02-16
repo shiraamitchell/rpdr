@@ -63,6 +63,7 @@ knitr::dep_prev()
 We begin by data wrangling, getting data into R in a useful form. We import and join datasets. We standardize continuous variables (see [this paper](http://www.stat.columbia.edu/~gelman/research/published/standardizing7.pdf)).
 
 ```{r wrangled, message = FALSE, warning = FALSE, cache = TRUE}
+gs_auth()
 rpdr_data <- "1Sotvl3o7J_ckKUg5sRiZTqNQn3hPqhepBSeOpMTK15Q" %>%  gs_key
 
 all_episodes <- rpdr_data %>% gs_read("all_episodes") %>%
@@ -73,15 +74,16 @@ all_rankings <- rpdr_data %>% gs_read("all_rankings")
 wrangled <- all_rankings %>%
   left_join(all_contestants, by = c("season_number","contestant_id")) %>%
   left_join(all_episodes, by=c("season_number", "episode_number")) %>%
-  mutate(placement = case_when(is.element(episode_placement,c('WIN','Winner')) ~ "win",
-                      is.element(episode_placement,c('ELIM','Eliminated'))  ~ "lose",
-                      TRUE ~ "neither")) %>%
-  group_by(t) %>% mutate(num_winners = sum(placement == "win"), 
-                         num_losers = sum(placement == "lose")) %>% ungroup() %>%
+  mutate(placement = case_when(is.element(episode_placement,c('WIN','Winner')) ~ 1,
+                      is.element(episode_placement,c('ELIM','Eliminated'))  ~ -1,
+                      TRUE ~ 0)) %>%
+  group_by(t) %>% mutate(num_winners = sum(placement == 1), 
+                         num_losers = sum(placement == -1)) %>% 
+  arrange(desc(placement), .by_group = TRUE) %>% ungroup() %>% # within episode: winner first, loser last
   filter(is.element(episode_type,c('Competition','Finale'))) %>%
   filter(num_winners == 1, num_losers == 1) %>% # only use data on typical episodes
   filter(!is.element(episode_placement,c('Guest','Miss C'))) %>%
-  group_by(contestant_id) %>% mutate(past_wins = cumsum(placement == "win") - (placement == "win")) %>%
+  group_by(contestant_id) %>% mutate(past_wins = cumsum(placement == 1) - (placement == 1)) %>%
   ungroup() %>%
   mutate(z.past_wins = (past_wins - mean(past_wins))/(2*sd(past_wins))) %>%
   mutate(z.age = (age - mean(age))/(2*sd(age))) %>%
@@ -118,29 +120,14 @@ $$\alpha_i \sim N(0, \sigma)$$
 We have [prior knowledge from large corpuses of logistic regressions](http://www.stat.columbia.edu/~gelman/research/published/priors11.pdf) to rule out unreasonable values for coefficients. We express this by putting a Student's t prior on $\beta_\text{age}$ and $\beta_\text{past_wins}$. This is a reasonable default prior when coefficients should be close to zero but have some chance of being large. We put a half-Normal prior on $\sigma$. We follow the recommendations [here](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations).
 
 ```{stan, output.var='model', cache = TRUE}
-functions {
-  vector remove(vector x, int length, int r) { 
-    vector[length - 1] result;
-    int pos = 1; 
-    for (n in 1:length) { 
-      if (n != r) { 
-        result[pos] = x[n];
-        pos = pos + 1; 
-      } 
-    } 
-  return result; 
-  }
-}
 data {
   int N; // number of contestant-episode observations
   int I; // number of contestants
   int T; // number of episodes
   int<lower=1,upper=I> ii[N]; // contestant for each observation
   int num_contestants[T]; // number of contestants for each episode
-  int winner[T]; // observation number of the winner for each episode
-  int loser[T]; // observation number of the loser for each episode
-  real age[N];
-  real past_wins[N];
+  vector[N] age;
+  vector[N] past_wins;
 }
 parameters {
   real beta_age;
@@ -152,10 +139,7 @@ transformed parameters {
   vector[I] alpha_contestant = alpha_contestant_raw * sigma;
 }
 model {
-  vector[N] eta;
-  for (n in 1:N) {
-    eta[n] = beta_age * age[n] + beta_past_wins * past_wins[n] + alpha_contestant[ii[n]];
-  }
+  vector[N] eta = beta_age * age + beta_past_wins * past_wins + alpha_contestant[ii];
   beta_age ~ student_t(6,0,2.5);
   beta_past_wins ~ student_t(6,0,2.5);
   alpha_contestant_raw ~ normal(0,1);
@@ -163,8 +147,9 @@ model {
   { int pos;
   pos = 1;
   for (t in 1:T) {
-    target += eta[winner[t]] - log_sum_exp(segment(eta, pos, num_contestants[t]));
-    target += -1*eta[loser[t]] - log_sum_exp(-1*segment(remove(eta,N,winner[t]), pos, num_contestants[t]-1));
+    vector[num_contestants[t]] eta_t = segment(eta, pos, num_contestants[t]);
+    target += eta_t[1] - log_sum_exp(eta_t);
+    target += -1*eta_t[rows(eta_t)] - log_sum_exp(-1*eta_t[2:rows(eta_t)]); // remove winner (listed first)
     pos = pos + num_contestants[t];
   }}
 }
@@ -179,8 +164,6 @@ fit_model <- function(df) {
     T = max(df$t),
     ii = df$contestant_id,
     num_contestants = (df %>% group_by(t) %>% summarise(n = n()))$n,
-    winner = which(df$placement == "win"),
-    loser = which(df$placement == "lose"), 
     age = df$z.age,
     past_wins = df$z.past_wins
   )
@@ -196,7 +179,7 @@ stan_plot(fit, pars = c('beta_age','beta_past_wins','sigma')) + geom_vline(xinte
 ```
 
 
-To estimate the predictive performance for new episodes we next use *leave-future-out cross-validation*:
+To estimate the predictive performance for new episodes we use *leave-future-out cross-validation*:
 
 ```{r lfo-cv, results = "hide", message = FALSE, warning=FALSE, cache = TRUE}
 Mode <- function(x) {
@@ -226,8 +209,8 @@ for (t_current in (L+1):max(wrangled$t)) {
   pred_winner <- Mode(winner_s)
   loser_s <- apply(eta_s, MARGIN = 1, FUN = which.min)
   pred_loser <- Mode(loser_s)
-  correct <- c(correct, (newdata$placement[pred_winner] == "win") & 
-                 (newdata$placement[pred_loser] == "lose"))
+  correct <- c(correct, (newdata$placement[pred_winner] == 1) & 
+                 (newdata$placement[pred_loser] == -1))
   random_correct = c(random_correct, (1/nrow(newdata))*(1/(nrow(newdata)-1)))
 }
 ```
