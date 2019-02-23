@@ -66,14 +66,23 @@ We begin by data wrangling, getting data into R in a useful form. We import and 
 gs_auth()
 rpdr_data <- "1Sotvl3o7J_ckKUg5sRiZTqNQn3hPqhepBSeOpMTK15Q" %>%  gs_key
 
-all_episodes <- rpdr_data %>% gs_read("all_episodes") %>%
-  arrange(season_number, episode_number) %>% rowid_to_column("t")
+all_episodes <- rpdr_data %>% gs_read("all_episodes")
 all_contestants <- rpdr_data %>% gs_read("all_contestants")
 all_rankings <- rpdr_data %>% gs_read("all_rankings")
 
-wrangled <- all_rankings %>%
+#--------------------- add next episode to predict ---------------------#
+all_episodes_next <- add_row(all_episodes, season_number = 11, episode_number = 1,
+                             episode_airdate = NA, episode_title = NA,
+                             episode_type = "Competition", episode_maxi_challenge_type = NA) %>% 
+  arrange(season_number, episode_number) %>% rowid_to_column("t")
+next_contestants <- (all_contestants %>% filter(season_number == 11))$contestant_id
+all_rankings_next <- add_row(all_rankings, season_number = 11, episode_number = 1, 
+                             contestant_id = next_contestants, episode_placement = NA)
+#-----------------------------------------------------------------------#
+
+wrangled <- all_rankings_next %>%
   left_join(all_contestants, by = c("season_number","contestant_id")) %>%
-  left_join(all_episodes, by=c("season_number", "episode_number")) %>%
+  left_join(all_episodes_next, by=c("season_number", "episode_number")) %>%
   mutate(placement = case_when(is.element(episode_placement,c('WIN','Winner')) ~ 1,
                       is.element(episode_placement,c('ELIM','Eliminated'))  ~ -1,
                       TRUE ~ 0)) %>%
@@ -81,34 +90,35 @@ wrangled <- all_rankings %>%
                          num_losers = sum(placement == -1)) %>% 
   arrange(desc(placement), .by_group = TRUE) %>% ungroup() %>% # within episode: winner first, loser last
   filter(is.element(episode_type,c('Competition','Finale'))) %>%
-  filter(num_winners == 1, num_losers == 1) %>% # only use data on typical episodes
-  filter(!is.element(episode_placement,c('Guest','Miss C'))) %>%
+  filter((num_winners == 1 & num_losers == 1) | t == max(t)) %>% # use data on typical episodes
+  filter(!is.element(episode_placement,c('Guest','Miss C')) | t == max(t)) %>% # use data on typical contestants
   group_by(contestant_id) %>% mutate(past_wins = cumsum(placement == 1) - (placement == 1)) %>%
   ungroup() %>%
   mutate(z.past_wins = (past_wins - mean(past_wins))/(2*sd(past_wins))) %>%
   mutate(z.age = (age - mean(age))/(2*sd(age))) %>%
-  select(season_number, episode_number, t, contestant_id, # identifiers
+  select(season_number, episode_number, t, contestant_id, contestant_name, # identifiers
          z.age, z.past_wins, # x variables
          placement, num_winners, num_losers) # episode outcomes
 
 # renumber episodes skipping the atypical ones:
 wrangled$t <- as.numeric(as.factor(wrangled$t))
+next_t = max(wrangled$t)
 ```
 
 Our wrangled data look like this:
 ```{r view1_wrangled, message = FALSE, warning = FALSE, echo = FALSE, cache = TRUE}
-kable(head(wrangled,10), digits = 2)
+kable(wrangled %>% filter(t == min(t)), digits = 2)
 ```
 ...
 ...
 ...
 ```{r view2_wrangled, message = FALSE, warning = FALSE, echo = FALSE, cache = TRUE}
-kable(tail(wrangled,10), digits = 2)
+kable(wrangled %>% filter(t == max(t)), digits = 2)
 ```
 
 ## Model
 
-Now that we wrangled our data, we can model. Let $i$ index the contestants and $t$ index the episodes. We fit a [multilevel](http://www.stat.columbia.edu/~gelman/arm/), [conditional logistic](https://en.wikipedia.org/wiki/Conditional_logistic_regression) regression model with a coefficient for each contestant. Here is our model in mathematical notation: 
+Now that we wrangled our data, we can model. Let $i$ index the contestants and $t$ index the episodes. We fit a [multilevel](http://www.stat.columbia.edu/~gelman/arm/), [conditional logistic](https://en.wikipedia.org/wiki/Conditional_logistic_regression) regression model with age, past wins, and a coefficient for each contestant. Here is our model in mathematical notation: 
 
 $$\eta_{it} = \beta_\text{age} \text{age}_i + \beta_\text{past_wins} \text{past_wins}_{it} + \alpha_i \ \ \text{ for } i \text{ playing in episode } t$$
 
@@ -169,7 +179,8 @@ fit_model <- function(df) {
   )
   sampling(object = model, data = standata, chains = 4, iter = 2000, control = list(adapt_delta = 0.99))
 }
-fit <- fit_model(df = wrangled)
+data_so_far <- wrangled %>% filter(t < next_t)
+fit <- fit_model(df = data_so_far)
 ```
 
 
@@ -190,7 +201,7 @@ L = 30 # always use at least L past episodes of data
 correct = c()
 random_correct = c()
 # this will take a long time!
-for (t_current in (L+1):max(wrangled$t)) {
+for (t_current in (L+1):(next_t - 1)) {
   data_current <- wrangled %>% filter(t < t_current) # leave-future-out
   fit_current <- fit_model(df = data_current)
   newdata <- wrangled %>% filter(t == t_current)
@@ -218,3 +229,36 @@ for (t_current in (L+1):max(wrangled$t)) {
 We get `r round(mean(correct)*100)`% accuracy with our model. A random guess gets `r round(mean(random_correct)*100)`% accuracy. Can your model do better?
 
 Sidenote: Computing leave-future-out cross-validation above took a long time. For an approximate leave-future-out cross-validation that is much faster, see [this paper](https://github.com/paul-buerkner/LFO-CV-paper/blob/master/LFO-CV.pdf).
+
+## Predict and submit
+
+Let's now use our model to predict the winner and loser of the next episode:
+
+```{r predict, results = "hide", message = FALSE, warning=FALSE, cache = TRUE}
+newdata <- wrangled %>% filter(t == next_t)
+s <- as.data.frame(fit) # simulations from the posterior
+eta_s <- matrix(NA, nrow = nrow(s), ncol = nrow(newdata))
+for (n in 1:nrow(newdata)) {
+  i = newdata$contestant_id[n]
+  if (is.element(i,data_so_far$contestant_id)) { # we have seen this contestant before
+    alpha_contestant_s <- s[,c(paste('alpha_contestant[',i,']',sep=''))]
+  } else { # this is a new contestant
+    alpha_contestant_s <- rnorm(n = nrow(s), mean = 0, sd = s$sigma)
+  }
+  eta_s[,n] <- s$beta_age * newdata$z.age[n] + s$beta_past_wins * newdata$z.past_wins[n] + alpha_contestant_s
+}
+winner_s <- apply(eta_s, MARGIN = 1, FUN = which.max)
+pred_winner <- Mode(winner_s)
+loser_s <- apply(eta_s, MARGIN = 1, FUN = which.min)
+pred_loser <- Mode(loser_s)
+```
+
+We predict `r newdata$contestant_name[pred_winner]` will win and `r newdata$contestant_name[pred_loser]` will lose.
+
+To submit, we go [here](https://goo.gl/forms/CDLwadteV5psAUy73):
+
+![](submit1.png)
+
+![](submit2.png)
+
+![](submit3.png)
