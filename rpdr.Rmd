@@ -27,8 +27,8 @@ Models can use any **publicly-available information**: e.g. blog posts, Twitter 
 2. all_contestants: contestant-level data, past 10 seasons, current season (season 11)
 3. all_rankings: episode-contestant-level data, past 10 seasons
 4. all_social_media: contestant-time-level data, seasons 4 through 10 (with some gaps), current season (season 11)
-5. survey_votes: vote-level data from the [survey](https://www.allourideas.org/drag-race-s11) (you can participate!), current season (season 11)
-6. survey_contestants: contestant-level data from the [survey](https://www.allourideas.org/drag-race-s11), current season (season 11)
+5. survey_votes: vote-level data from the [survey](https://www.allourideas.org/rpdr-s11-w2) (you can participate!), current season (season 11)
+6. survey_contestants: contestant-level data from the [survey](https://www.allourideas.org/rpdr-s11-w2), current season (season 11)
 
 We will be updating datasets throughout the current season (season 11).
 
