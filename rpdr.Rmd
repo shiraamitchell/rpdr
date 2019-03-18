@@ -71,14 +71,14 @@ all_contestants <- rpdr_data %>% gs_read("all_contestants")
 all_rankings <- rpdr_data %>% gs_read("all_rankings")
 
 #--------------------- add next episode to predict ---------------------#
-all_episodes_next <- add_row(all_episodes, season_number = 11, episode_number = 3,
+all_episodes_next <- add_row(all_episodes, season_number = 11, episode_number = 4,
                              episode_airdate = NA, episode_title = NA,
                              episode_type = "Competition", episode_maxi_challenge_type = NA) %>% 
   arrange(season_number, episode_number) %>% rowid_to_column("t")
 season_11_contestants <- (all_contestants %>% filter(season_number == 11))$contestant_id
 eliminated_contestants <- (all_rankings %>% filter(is.element(episode_placement,c('ELIM','Eliminated'))))$contestant_id
 next_contestants <- setdiff(season_11_contestants, eliminated_contestants)
-all_rankings_next <- add_row(all_rankings, season_number = 11, episode_number = 3, 
+all_rankings_next <- add_row(all_rankings, season_number = 11, episode_number = 4, 
                              contestant_id = next_contestants, episode_placement = NA)
 #-----------------------------------------------------------------------#
 
@@ -94,10 +94,10 @@ wrangled <- all_rankings_next %>%
   filter(is.element(episode_type,c('Competition','Finale'))) %>%
   group_by(contestant_id) %>% mutate(past_wins = cumsum(placement == 1) - (placement == 1)) %>%
   ungroup() %>%
-  filter((num_winners == 1 & num_losers == 1) | t == max(t)) %>% # use data on typical episodes
-  filter(!is.element(episode_placement,c('Guest','Miss C')) | t == max(t)) %>% # use data on typical contestants
   mutate(z.past_wins = (past_wins - mean(past_wins))/(2*sd(past_wins))) %>%
   mutate(z.age = (age - mean(age))/(2*sd(age))) %>%
+  filter((num_winners == 1 & num_losers == 1) | t == max(t)) %>% # use data on typical episodes
+  filter(!is.element(episode_placement,c('Guest','Miss C')) | t == max(t)) %>% # use data on typical contestants
   select(season_number, episode_number, t, contestant_id, contestant_name, # identifiers
          z.age, z.past_wins, # x variables
          placement, num_winners, num_losers) # episode outcomes
