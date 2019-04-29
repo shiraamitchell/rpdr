@@ -71,14 +71,14 @@ all_contestants <- rpdr_data %>% gs_read("all_contestants")
 all_rankings <- rpdr_data %>% gs_read("all_rankings")
 
 #--------------------- add next episode to predict ---------------------#
-all_episodes_next <- add_row(all_episodes, season_number = 11, episode_number = 9,
+all_episodes_next <- add_row(all_episodes, season_number = 11, episode_number = 10,
                              episode_airdate = NA, episode_title = NA,
                              episode_type = "Competition", episode_maxi_challenge_type = NA) %>% 
   arrange(season_number, episode_number) %>% rowid_to_column("t")
 season_11_contestants <- (all_contestants %>% filter(season_number == 11))$contestant_id
 eliminated_contestants <- (all_rankings %>% filter(is.element(episode_placement,c('ELIM','Eliminated'))))$contestant_id
 next_contestants <- setdiff(season_11_contestants, eliminated_contestants)
-all_rankings_next <- add_row(all_rankings, season_number = 11, episode_number = 9, 
+all_rankings_next <- add_row(all_rankings, season_number = 11, episode_number = 10, 
                              contestant_id = next_contestants, episode_placement = NA)
 #-----------------------------------------------------------------------#
 
